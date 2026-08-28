@@ -33,7 +33,7 @@ public class MoviesApiTest {
     private static Gson gson;
 
     @BeforeAll
-    static void beforeAll() throws IOException {
+    static void beforeAll() {
         server = new MoviesServer();
         server.start();
 
@@ -59,12 +59,7 @@ public class MoviesApiTest {
     // GET возвращает статус 200 и пустой массив, если хранилище пустое
     @Test
     void getMoviesWhenEmptyReturnsEmptyList() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies");
 
         assertEquals(200, resp.statusCode());
         assertEquals(EXPECTED_CONTENT_TYPE, resp.headers().firstValue("Content-Type").orElse(""));
@@ -77,12 +72,7 @@ public class MoviesApiTest {
         server.getStore().save(new Movie("Inception", 2010));
         server.getStore().save(new Movie("Interstellar", 2014));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies");
 
         assertEquals(200, resp.statusCode());
         assertEquals(EXPECTED_CONTENT_TYPE, resp.headers().firstValue("Content-Type").orElse(""));
@@ -97,12 +87,7 @@ public class MoviesApiTest {
         server.getStore().save(new Movie("Shutter Island", 2010));
         server.getStore().save(new Movie("Interstellar", 2014));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies?year=2010"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies?year=2010");
 
         assertEquals(200, resp.statusCode());
         List<Movie> movies = gson.fromJson(resp.body(), MOVIE_LIST_TYPE);
@@ -115,12 +100,7 @@ public class MoviesApiTest {
     void getMoviesByYearWhenNoMoviesMatchReturnsEmptyList() throws Exception {
         server.getStore().save(new Movie("Inception", 2010));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies?year=1999"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies?year=1999");
 
         assertEquals(200, resp.statusCode());
         assertEquals("[]", resp.body().trim());
@@ -129,12 +109,7 @@ public class MoviesApiTest {
     // GET возвращает 400 Bad Request при нечисловом параметре года
     @Test
     void getMoviesByYearWhenYearIsNotNumberReturns400WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies?year=not_a_year"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies?year=not_a_year");
 
         assertEquals(400, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -145,13 +120,7 @@ public class MoviesApiTest {
     void postMovieValidDataCreatesMovieAndReturns201() throws Exception {
         Movie movie = new Movie("Dune", 2021);
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(movie)))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", gson.toJson(movie));
 
         assertEquals(201, resp.statusCode());
         assertEquals(EXPECTED_CONTENT_TYPE, resp.headers().firstValue("Content-Type").orElse(""));
@@ -167,13 +136,7 @@ public class MoviesApiTest {
     void postMovieEmptyOrBlankTitleReturns422WithError() throws Exception {
         String body = "{\"title\": \" \", \"year\": 2020}";
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", body);
 
         assertEquals(422, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -185,13 +148,7 @@ public class MoviesApiTest {
         String longTitle = "A".repeat(101);
         String body = gson.toJson(new Movie(longTitle, 2020));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", body);
 
         assertEquals(422, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -202,13 +159,7 @@ public class MoviesApiTest {
     void postMovieYearLessThan1888Returns422WithError() throws Exception {
         String body = gson.toJson(new Movie("Old Movie", 1887));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", body);
 
         assertEquals(422, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -220,13 +171,7 @@ public class MoviesApiTest {
         int invalidFutureYear = Year.now().getValue() + 2;
         String body = gson.toJson(new Movie("Too Future Movie", invalidFutureYear));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", body);
 
         assertEquals(422, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -235,13 +180,7 @@ public class MoviesApiTest {
     // POST возвращает 415 Unsupported Media Type при Content-Type, отличном от application/json
     @Test
     void postMovieInvalidContentTypeReturns415WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "text/plain")
-                .POST(HttpRequest.BodyPublishers.ofString("title=Avatar&year=2009"))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", "title=Avatar&year=2009", "text/plain");
 
         assertEquals(415, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -250,13 +189,7 @@ public class MoviesApiTest {
     // POST возвращает 400 Bad Request при синтаксически невалидном JSON
     @Test
     void postMovieInvalidJsonReturns400WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{not_valid_json}"))
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPost("/movies", "{not_valid_json}");
 
         assertEquals(400, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -267,12 +200,7 @@ public class MoviesApiTest {
     void getMovieByIdExistingIdReturns200AndMovie() throws Exception {
         Movie saved = server.getStore().save(new Movie("The Matrix", 1999));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/" + saved.getId()))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies/" + saved.getId());
 
         assertEquals(200, resp.statusCode());
         assertEquals(EXPECTED_CONTENT_TYPE, resp.headers().firstValue("Content-Type").orElse(""));
@@ -285,12 +213,7 @@ public class MoviesApiTest {
     // GET возвращает 404 Not Found, если фильм с таким ID не существует
     @Test
     void getMovieByIdNonExistingIdReturns404WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/999"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies/999");
 
         assertEquals(404, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -299,12 +222,7 @@ public class MoviesApiTest {
     // GET возвращает 400 Bad Request, если передан нечисловой ID
     @Test
     void getMovieByIdNonNumericIdReturns400WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/abc"))
-                .GET()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendGet("/movies/abc");
 
         assertEquals(400, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -315,12 +233,7 @@ public class MoviesApiTest {
     void deleteMovieExistingIdDeletesMovieAndReturns204() throws Exception {
         Movie saved = server.getStore().save(new Movie("Forrest Gump", 1994));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/" + saved.getId()))
-                .DELETE()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendDelete("/movies/" + saved.getId());
 
         assertEquals(204, resp.statusCode());
         assertTrue(server.getStore().findById(saved.getId()).isEmpty());
@@ -329,12 +242,7 @@ public class MoviesApiTest {
     // DELETE возвращает 404 Not Found при попытке удалить несуществующий фильм
     @Test
     void deleteMovieNonExistingIdReturns404WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/999"))
-                .DELETE()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendDelete("/movies/999");
 
         assertEquals(404, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -343,12 +251,7 @@ public class MoviesApiTest {
     // DELETE возвращает 400 Bad Request при нечисловом значении ID
     @Test
     void deleteMovieNonNumericIdReturns400WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/invalid"))
-                .DELETE()
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendDelete("/movies/invalid");
 
         assertEquals(400, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -357,12 +260,7 @@ public class MoviesApiTest {
     // возвращает 405 Method Not Allowed при неподдерживаемом HTTP-методе
     @Test
     void unsupportedMethodOnCollectionReturns405WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies"))
-                .PUT(HttpRequest.BodyPublishers.noBody())
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPut("/movies");
 
         assertEquals(405, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -371,12 +269,7 @@ public class MoviesApiTest {
     // возвращает 405 Method Not Allowed при неподдерживаемом HTTP-методе
     @Test
     void unsupportedMethodOnItemReturns405WithError() throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(BASE + "/movies/1"))
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> resp = sendPut("/movies/1");
 
         assertEquals(405, resp.statusCode());
         assertErrorBodyHasErrorField(resp.body());
@@ -388,5 +281,42 @@ public class MoviesApiTest {
         JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
         assertTrue(json.has("error"), "Тело ошибки должно содержать поле 'error'");
         assertFalse(json.get("error").getAsString().isBlank(), "Поле 'error' не должно быть пустым");
+    }
+
+    private HttpResponse<String> sendGet(String path) throws IOException, InterruptedException {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .GET()
+                .build();
+        return client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private HttpResponse<String> sendPost(String path, String jsonBody) throws IOException, InterruptedException {
+        return sendPost(path, jsonBody, "application/json");
+    }
+
+    private HttpResponse<String> sendPost(String path, String body, String contentType) throws IOException, InterruptedException {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .header("Content-Type", contentType)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private HttpResponse<String> sendDelete(String path) throws IOException, InterruptedException {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .DELETE()
+                .build();
+        return client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private HttpResponse<String> sendPut(String path) throws IOException, InterruptedException {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(BASE + path))
+                .PUT(HttpRequest.BodyPublishers.noBody())
+                .build();
+        return client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 }
